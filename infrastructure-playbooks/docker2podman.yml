@@ -1,0 +1,204 @@
+---
+- hosts:
+  - mons
+  - osds
+  - mdss
+  - rgws
+  - nfss
+  - rbdmirrors
+  - clients
+  - iscsigws
+  - mgrs
+  - grafana-server
+
+  gather_facts: false
+  become: True
+  any_errors_fatal: true
+
+  vars:
+    delegate_facts_host: True
+
+  tasks:
+    - name: gather facts
+      setup:
+      when: not delegate_facts_host | bool
+      tags: docker2podman
+
+    - name: gather and delegate facts
+      setup:
+      delegate_to: "{{ item }}"
+      delegate_facts: True
+      with_items: "{{ groups['all'] }}"
+      run_once: true
+      when: delegate_facts_host | bool
+      tags: docker2podman
+
+- hosts: mons
+  become: True
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-mon
+    - import_role:
+        name: ceph-mgr
+      when: groups.get(mgr_group_name, []) | length == 0
+
+
+- hosts: mgrs
+  become: True
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-mgr
+
+- hosts: osds
+  become: True
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-osd
+ 
+- hosts: mdss
+  become: True
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-mds
+
+- hosts: rgws
+  become: True
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-rgw
+
+- hosts: nfss
+  become: True
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-nfs
+
+- hosts: rbdmirrors
+  become: True
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-rbd-mirror
+
+- hosts:
+    - iscsigws
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    docker2podman: True
+  become: True
+  tasks:
+    - import_role:
+        name: ceph-defaults
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-facts
+      tags: ['docker2podman']
+    - import_role:
+        name: ceph-handler
+    - import_role:
+        name: ceph-iscsi-gw
+
+- hosts: all
+  become: true
+  tasks:
+    - import_role:
+        name: ceph-defaults
+    - import_role:
+        name: ceph-node-exporter
+      when: dashboard_enabled | bool
+
+- hosts: '{{ groups["grafana-server"][0] | default(groups["mgrs"][0]) | default(groups["mons"][0]) | default(omit) }}'
+  become: true
+  tasks:
+    - block:
+      - import_role:
+          name: ceph-prometheus
+      - import_role:
+          name: ceph-grafana
+      - import_role:
+          name: ceph-dashboard
+      when: dashboard_enabled | bool
